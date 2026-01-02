@@ -1,19 +1,16 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { use } from 'react';
+import { useSearchParams, useParams } from 'next/navigation';
 import DashboardLayout from '../../components/DashboardLayout';
 import TemplateForm from '../../components/TemplateForm';
 import type { Template } from '@/lib/types';
 import '../../admin.css';
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-function EditTemplateContent({ id }: { id: string }) {
+function EditTemplateContent() {
+  const params = useParams();
   const searchParams = useSearchParams();
+  const id = params.id as string;
   const category = searchParams.get('category');
 
   const [template, setTemplate] = useState<Template | null>(null);
@@ -21,6 +18,12 @@ function EditTemplateContent({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!id) {
+      setError('Template ID is required');
+      setIsLoading(false);
+      return;
+    }
+
     if (!category) {
       setError('Category parameter is required');
       setIsLoading(false);
@@ -100,12 +103,10 @@ function LoadingFallback() {
   );
 }
 
-export default function EditTemplatePage({ params }: PageProps) {
-  const { id } = use(params);
-
+export default function EditTemplatePage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <EditTemplateContent id={id} />
+      <EditTemplateContent />
     </Suspense>
   );
 }
