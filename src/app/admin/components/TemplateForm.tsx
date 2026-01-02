@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Template, TemplateConfiguration, TemplateMetadata } from '@/lib/types';
-import { DEFAULT_TEMPLATE_CONFIG, CATEGORIES, CATEGORY_COLORS } from '@/lib/types';
+import type { Template, TemplateConfiguration, TemplateMetadata, IconShape } from '@/lib/types';
+import { DEFAULT_TEMPLATE_CONFIG, CATEGORIES, CATEGORY_COLORS, ICON_SHAPE_RADIUS } from '@/lib/types';
+import { getIconRawUrl } from '@/lib/github';
 
 interface TemplateFormProps {
   template?: Template;
@@ -15,10 +16,13 @@ const LINK_BEHAVIORS = ['sameWindow', 'newTab', 'systemBrowser'] as const;
 const COOKIE_POLICIES = ['persistent', 'session'] as const;
 const USER_AGENTS = ['default', 'chrome', 'safari'] as const;
 const AD_BLOCKING_OPTIONS = ['disabled', 'basic', 'advanced'] as const;
+const ICON_SHAPES: IconShape[] = ['circular', 'rounded', 'square'];
 
 export default function TemplateForm({ template, isEditing = false }: TemplateFormProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingIcon, setIsFetchingIcon] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Basic Info
@@ -28,10 +32,18 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
   const [category, setCategory] = useState(template?.category || 'productivity');
   const [description, setDescription] = useState(template?.description || '');
 
-  // Icon
+  // Icon - letter fallback
   const [icon, setIcon] = useState(template?.icon || '');
   const [iconColor, setIconColor] = useState(template?.iconColor || '#6366f1');
   const [iconBackground, setIconBackground] = useState(template?.iconBackground || '#FFFFFF');
+
+  // Icon - image
+  const [iconUrl, setIconUrl] = useState(template?.iconUrl || '');
+  const [iconShape, setIconShape] = useState<IconShape>(template?.iconShape || 'rounded');
+  const [iconPreview, setIconPreview] = useState<string | null>(
+    template?.iconUrl ? getIconRawUrl(template.iconUrl) : null
+  );
+  const [newIconData, setNewIconData] = useState<string | null>(null); // Base64 data for new icon to upload
 
   // Configuration
   const config = template?.configuration || DEFAULT_TEMPLATE_CONFIG;
@@ -50,50 +62,151 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
   const [tier, setTier] = useState(template?.metadata?.tier || 1);
   const [tags, setTags] = useState(template?.metadata?.tags?.join(', ') || '');
 
+  // Fetch icon from website
+  const handleFetchIcon = async () => {
+    if (!url) {
+      setError('Please enter a URL first');
+      return;
+    }
+
+    setIsFetchingIcon(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/admin/icon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to fetch icon');
+      }
+
+      setIconPreview(data.data);
+      setNewIconData(data.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch icon');
+    } finally {
+      setIsFetchingIcon(false);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be less than 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setIconPreview(dataUrl);
+      setNewIconData(dataUrl);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Clear icon (use letter instead)
+  const handleClearIcon = () => {
+    setIconPreview(null);
+    setNewIconData(null);
+    setIconUrl('');
+  };
+
+  // Get border radius for icon shape
+  const getShapeBorderRadius = (shape: IconShape, size: number = 128): number => {
+    const ratio = size / 256;
+    return ICON_SHAPE_RADIUS[shape] * ratio;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSaving(true);
 
-    // Validation
-    if (!id || !name || !url || !category || !description || !icon) {
+    // Validation - icon letter only required if no image
+    if (!id || !name || !url || !category || !description) {
       setError('Please fill in all required fields');
       setIsSaving(false);
       return;
     }
 
-    // Build template object
-    const templateData: Template = {
-      id: id.toLowerCase().replace(/\s+/g, '-'),
-      name,
-      url,
-      category,
-      icon,
-      iconColor,
-      iconBackground,
-      description,
-      configuration: {
-        windowStyle,
-        windowWidth,
-        windowHeight,
-        tabbedBrowsing,
-        notifications,
-        internalLinkBehavior,
-        externalLinkBehavior,
-        cookiePolicy,
-        userAgent,
-        adBlocking,
-      } as TemplateConfiguration,
-      metadata: {
-        version: template?.metadata?.version || '1.0',
-        author: template?.metadata?.author || 'Web2App Studio',
-        lastUpdated: new Date().toISOString().split('T')[0],
-        tier,
-        tags: tags.split(',').map(t => t.trim()).filter(t => t),
-      } as TemplateMetadata,
-    };
+    if (!iconPreview && !icon) {
+      setError('Please provide an icon (either upload an image or enter a letter)');
+      setIsSaving(false);
+      return;
+    }
 
     try {
+      // If there's new icon data to upload, upload it first
+      let finalIconUrl = iconUrl;
+      if (newIconData) {
+        const uploadResponse = await fetch('/api/admin/icon/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: id.toLowerCase().replace(/\s+/g, '-'),
+            imageData: newIconData,
+          }),
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadResponse.ok || !uploadData.success) {
+          throw new Error(uploadData.error || 'Failed to upload icon');
+        }
+
+        finalIconUrl = uploadData.iconUrl;
+      }
+
+      // Build template object
+      const templateData: Template = {
+        id: id.toLowerCase().replace(/\s+/g, '-'),
+        name,
+        url,
+        category,
+        icon: icon || name.charAt(0).toUpperCase(),
+        iconColor,
+        iconBackground,
+        ...(finalIconUrl && { iconUrl: finalIconUrl }),
+        ...(iconShape && { iconShape }),
+        description,
+        configuration: {
+          windowStyle,
+          windowWidth,
+          windowHeight,
+          tabbedBrowsing,
+          notifications,
+          internalLinkBehavior,
+          externalLinkBehavior,
+          cookiePolicy,
+          userAgent,
+          adBlocking,
+        } as TemplateConfiguration,
+        metadata: {
+          version: template?.metadata?.version || '1.0',
+          author: template?.metadata?.author || 'Web2App Studio',
+          lastUpdated: new Date().toISOString().split('T')[0],
+          tier,
+          tags: tags.split(',').map(t => t.trim()).filter(t => t),
+        } as TemplateMetadata,
+      };
+
       const response = await fetch('/api/admin/templates', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,12 +260,27 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
             <div className="preview-titlebar-text">{name || 'Template Name'}</div>
           </div>
           <div className="preview-content" style={{ background: `${getCategoryColor()}15` }}>
-            <div
-              className="preview-content-icon"
-              style={{ backgroundColor: iconColor, color: iconBackground }}
-            >
-              {icon || '?'}
-            </div>
+            {iconPreview ? (
+              <img
+                src={iconPreview}
+                alt="App icon"
+                className="preview-content-image"
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: getShapeBorderRadius(iconShape, 80),
+                  backgroundColor: iconBackground,
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <div
+                className="preview-content-icon"
+                style={{ backgroundColor: iconColor, color: iconBackground }}
+              >
+                {icon || '?'}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -231,66 +359,189 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
         </div>
       </div>
 
-      {/* Icon Settings */}
+      {/* App Icon */}
       <div className="form-section">
         <h3 className="form-section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="18" height="18" rx="4" />
-            <path d="M12 8v8" />
-            <path d="M8 12h8" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21,15 16,10 5,21" />
           </svg>
-          Icon
+          App Icon
         </h3>
 
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label">Icon Letter *</label>
+        {/* Icon Preview */}
+        <div className="icon-editor">
+          <div className="icon-preview-large">
+            {iconPreview ? (
+              <img
+                src={iconPreview}
+                alt="App icon preview"
+                style={{
+                  width: 128,
+                  height: 128,
+                  borderRadius: getShapeBorderRadius(iconShape, 128),
+                  backgroundColor: iconBackground,
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <div
+                className="icon-letter-preview"
+                style={{
+                  width: 128,
+                  height: 128,
+                  borderRadius: getShapeBorderRadius(iconShape, 128),
+                  backgroundColor: iconColor,
+                  color: iconBackground,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 48,
+                  fontWeight: 700,
+                }}
+              >
+                {icon || '?'}
+              </div>
+            )}
+          </div>
+
+          {/* Icon Actions */}
+          <div className="icon-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleFetchIcon}
+              disabled={isFetchingIcon || !url}
+            >
+              {isFetchingIcon ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  Fetch from Website
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17,8 12,3 7,8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Upload Icon
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+
+            {iconPreview && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleClearIcon}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Use Letter Instead
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Icon Shape Selector */}
+        <div className="form-group" style={{ marginTop: 20 }}>
+          <label className="form-label">Icon Shape</label>
+          <div className="shape-selector">
+            {ICON_SHAPES.map(shape => (
+              <button
+                key={shape}
+                type="button"
+                className={`shape-btn ${iconShape === shape ? 'active' : ''}`}
+                onClick={() => setIconShape(shape)}
+              >
+                <div
+                  className="shape-preview"
+                  style={{
+                    borderRadius: shape === 'circular' ? '50%' : shape === 'rounded' ? '6px' : '0',
+                  }}
+                />
+                {shape.charAt(0).toUpperCase() + shape.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Background Color */}
+        <div className="form-group" style={{ marginTop: 16 }}>
+          <label className="form-label">Background Color</label>
+          <div className="color-input-wrapper">
+            <input
+              type="color"
+              value={iconBackground}
+              onChange={e => setIconBackground(e.target.value)}
+            />
             <input
               type="text"
               className="form-input"
-              placeholder="N"
-              maxLength={2}
-              value={icon}
-              onChange={e => setIcon(e.target.value)}
+              value={iconBackground}
+              onChange={e => setIconBackground(e.target.value)}
+              placeholder="#FFFFFF"
             />
           </div>
-
-          <div className="form-group">
-            <label className="form-label">Icon Color</label>
-            <div className="color-input-wrapper">
-              <input
-                type="color"
-                value={iconColor}
-                onChange={e => setIconColor(e.target.value)}
-              />
-              <input
-                type="text"
-                className="form-input"
-                value={iconColor}
-                onChange={e => setIconColor(e.target.value)}
-                placeholder="#6366f1"
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Background Color</label>
-            <div className="color-input-wrapper">
-              <input
-                type="color"
-                value={iconBackground}
-                onChange={e => setIconBackground(e.target.value)}
-              />
-              <input
-                type="text"
-                className="form-input"
-                value={iconBackground}
-                onChange={e => setIconBackground(e.target.value)}
-                placeholder="#FFFFFF"
-              />
-            </div>
-          </div>
         </div>
+
+        {/* Letter Fallback Settings (only shown when no image) */}
+        {!iconPreview && (
+          <div className="form-grid" style={{ marginTop: 16 }}>
+            <div className="form-group">
+              <label className="form-label">Fallback Letter</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="N"
+                maxLength={2}
+                value={icon}
+                onChange={e => setIcon(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Letter Color</label>
+              <div className="color-input-wrapper">
+                <input
+                  type="color"
+                  value={iconColor}
+                  onChange={e => setIconColor(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="form-input"
+                  value={iconColor}
+                  onChange={e => setIconColor(e.target.value)}
+                  placeholder="#6366f1"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Window Configuration */}

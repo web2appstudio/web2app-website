@@ -21,6 +21,8 @@ export interface TemplateMetadata {
   tags: string[];
 }
 
+export type IconShape = 'circular' | 'rounded' | 'square';
+
 export interface Template {
   id: string;
   name: string;
@@ -29,10 +31,19 @@ export interface Template {
   icon: string;
   iconColor: string;
   iconBackground: string;
+  iconUrl?: string;      // URL or path to icon image (e.g., "icons/notion.png")
+  iconShape?: IconShape; // Shape for the icon display
   description: string;
   configuration: TemplateConfiguration;
   metadata: TemplateMetadata;
 }
+
+// Icon shape corner radius mapping (based on 256px icon size)
+export const ICON_SHAPE_RADIUS: Record<IconShape, number> = {
+  circular: 128,  // 50% for perfect circle
+  rounded: 56,    // ~22% (macOS standard)
+  square: 0,
+};
 
 export interface Category {
   id: string;

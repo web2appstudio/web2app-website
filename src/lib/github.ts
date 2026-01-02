@@ -306,3 +306,72 @@ export async function updateTemplateCounts(
 
   return updateManifest(manifest, accessToken);
 }
+
+// Upload an icon image to the repo
+export async function uploadIcon(
+  templateId: string,
+  imageData: string, // Base64 encoded image data (with or without data URL prefix)
+  accessToken: string
+): Promise<{ success: boolean; iconUrl?: string; error?: string }> {
+  try {
+    // Remove data URL prefix if present (e.g., "data:image/png;base64,")
+    let base64Data = imageData;
+    if (imageData.includes(',')) {
+      base64Data = imageData.split(',')[1];
+    }
+
+    const path = `icons/${templateId}.png`;
+    const message = `Add icon for template: ${templateId}`;
+
+    // Check if file exists to get SHA
+    const existingSHA = await getFileSHA(path, accessToken);
+
+    const body: Record<string, string> = {
+      message,
+      content: base64Data,
+      branch: GITHUB_BRANCH,
+    };
+
+    if (existingSHA) {
+      body.sha = existingSHA;
+    }
+
+    const response = await fetch(
+      `${GITHUB_API_URL}/repos/${GITHUB_ORG}/${GITHUB_REPO}/contents/${path}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Web2App-Studio-Admin',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { success: false, error: error.message || 'Failed to upload icon' };
+    }
+
+    return { success: true, iconUrl: path };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+// Delete an icon from the repo
+export async function deleteIcon(
+  templateId: string,
+  accessToken: string
+): Promise<{ success: boolean; error?: string }> {
+  const path = `icons/${templateId}.png`;
+  return deleteFile(path, `Delete icon for template: ${templateId}`, accessToken);
+}
+
+// Get the raw URL for an icon
+export function getIconRawUrl(iconPath: string): string {
+  // Use jsDelivr CDN for better performance
+  return `https://cdn.jsdelivr.net/gh/${GITHUB_ORG}/${GITHUB_REPO}@${GITHUB_BRANCH}/${iconPath}`;
+}

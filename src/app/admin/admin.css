@@ -881,6 +881,107 @@
   font-weight: 700;
 }
 
+/* Icon Editor */
+.icon-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background: #0f0f0f;
+  border-radius: 10px;
+}
+
+.icon-preview-large {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.icon-preview-large img {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.icon-letter-preview {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.icon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.icon-actions .btn {
+  flex: 1;
+  min-width: 140px;
+  justify-content: center;
+}
+
+/* Shape Selector */
+.shape-selector {
+  display: flex;
+  gap: 12px;
+}
+
+.shape-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: #0f0f0f;
+  border: 2px solid #2a2a2a;
+  border-radius: 10px;
+  color: #888;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shape-btn:hover {
+  background: #1a1a1a;
+  border-color: #3a3a3a;
+  color: #fff;
+}
+
+.shape-btn.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--primary);
+  color: var(--primary-light);
+}
+
+.shape-preview {
+  width: 32px;
+  height: 32px;
+  background: #666;
+}
+
+.shape-btn.active .shape-preview {
+  background: var(--primary);
+}
+
+/* Small Spinner (for buttons) */
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #444;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Template Icon Image */
+.template-icon-image {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .sidebar {

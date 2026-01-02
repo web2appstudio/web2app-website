@@ -5,7 +5,8 @@ import Link from 'next/link';
 import DashboardLayout from '../components/DashboardLayout';
 import DeleteModal from '../components/DeleteModal';
 import type { Template, Category } from '@/lib/types';
-import { CATEGORY_COLORS } from '@/lib/types';
+import { CATEGORY_COLORS, ICON_SHAPE_RADIUS } from '@/lib/types';
+import { getIconRawUrl } from '@/lib/github';
 import '../admin.css';
 
 export default function DashboardPage() {
@@ -17,6 +18,12 @@ export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFetchingIcons, setIsFetchingIcons] = useState(false);
+  const [iconFetchResult, setIconFetchResult] = useState<{
+    success: number;
+    failed: number;
+    skipped: number;
+  } | null>(null);
 
   const fetchTemplates = async () => {
     try {
@@ -81,6 +88,57 @@ export default function DashboardPage() {
     return CATEGORY_COLORS[categoryId] || '#6366f1';
   };
 
+  const handleBulkIconFetch = async () => {
+    if (isFetchingIcons) return;
+
+    const confirmed = window.confirm(
+      'This will fetch and upload icons for all templates that don\'t have one yet. This may take a few minutes. Continue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsFetchingIcons(true);
+    setIconFetchResult(null);
+
+    try {
+      const response = await fetch('/api/admin/icon/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch icons');
+      }
+
+      setIconFetchResult({
+        success: data.summary.success,
+        failed: data.summary.failed,
+        skipped: data.summary.skipped,
+      });
+
+      // Refresh templates to show new icons
+      await fetchTemplates();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to fetch icons');
+    } finally {
+      setIsFetchingIcons(false);
+    }
+  };
+
+  // Count templates without icons
+  const templatesWithoutIcons = templates.filter(t => !t.iconUrl).length;
+
+  // Get border radius for icon based on shape
+  const getIconBorderRadius = (template: Template): number => {
+    const shape = template.iconShape || 'rounded';
+    // Scale down for 44px icon (from 256px base)
+    const ratio = 44 / 256;
+    return ICON_SHAPE_RADIUS[shape] * ratio;
+  };
+
   return (
     <DashboardLayout>
       <div className="page-header">
@@ -124,6 +182,56 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Bulk Icon Fetch */}
+      {templatesWithoutIcons > 0 && (
+        <div className="form-section" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h3 className="form-section-title" style={{ marginBottom: 4 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="4" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21,15 16,10 5,21" />
+                </svg>
+                Missing Icons
+              </h3>
+              <p style={{ color: '#666', fontSize: 14 }}>
+                {templatesWithoutIcons} template{templatesWithoutIcons !== 1 ? 's' : ''} without icons.
+                Fetch them automatically from website favicons.
+              </p>
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={handleBulkIconFetch}
+              disabled={isFetchingIcons}
+            >
+              {isFetchingIcons ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Fetching Icons...
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7,10 12,15 17,10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Fetch All Icons
+                </>
+              )}
+            </button>
+          </div>
+          {iconFetchResult && (
+            <div style={{ marginTop: 16, padding: 12, background: '#0f0f0f', borderRadius: 8 }}>
+              <p style={{ color: '#22c55a', fontSize: 14 }}>
+                Completed: {iconFetchResult.success} succeeded, {iconFetchResult.failed} failed, {iconFetchResult.skipped} skipped
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search & Filter */}
       <div className="search-bar">
@@ -214,12 +322,24 @@ export default function DashboardPage() {
           {filteredTemplates.map(template => (
             <div key={template.id} className="table-row">
               <div className="template-info">
-                <div
-                  className="template-icon"
-                  style={{ backgroundColor: getCategoryColor(template.category) }}
-                >
-                  {template.icon}
-                </div>
+                {template.iconUrl ? (
+                  <img
+                    src={getIconRawUrl(template.iconUrl)}
+                    alt={template.name}
+                    className="template-icon-image"
+                    style={{
+                      borderRadius: getIconBorderRadius(template),
+                      backgroundColor: template.iconBackground || '#fff',
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="template-icon"
+                    style={{ backgroundColor: getCategoryColor(template.category) }}
+                  >
+                    {template.icon}
+                  </div>
+                )}
                 <div className="template-details">
                   <div className="template-name">{template.name}</div>
                   <div className="template-url">{template.url}</div>
