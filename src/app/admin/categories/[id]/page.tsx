@@ -1,55 +1,58 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '../../components/DashboardLayout';
 import CategoryForm from '../../components/CategoryForm';
 import type { Category } from '@/lib/types';
 import '../../admin.css';
 
-export default function EditCategoryPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function EditCategoryContent() {
+  const params = useParams();
+  const id = params.id as string;
+
   const [category, setCategory] = useState<Category | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchCategory = async () => {
-      try {
-        const response = await fetch(`/api/admin/categories/${id}`);
-        const data = await response.json();
+    if (!id) {
+      setError('Category ID is required');
+      setIsLoading(false);
+      return;
+    }
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch category');
+    fetch(`/api/admin/categories/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setCategory(data.category);
         }
-
-        setCategory(data.category);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to load category');
+      })
+      .finally(() => {
         setIsLoading(false);
-      }
-    };
-
-    fetchCategory();
+      });
   }, [id]);
 
-  return (
-    <DashboardLayout>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Edit Category</h1>
-          <p className="page-subtitle">
-            Configure default settings for {category?.name || id} apps
-          </p>
-        </div>
-      </div>
-
-      {isLoading ? (
+  if (isLoading) {
+    return (
+      <DashboardLayout>
         <div className="loading-container">
           <div className="spinner"></div>
           <p className="loading-text">Loading category...</p>
         </div>
-      ) : error ? (
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !category) {
+    return (
+      <DashboardLayout>
         <div className="empty-state">
           <div className="empty-state-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -59,11 +62,43 @@ export default function EditCategoryPage({ params }: { params: Promise<{ id: str
             </svg>
           </div>
           <h3 className="empty-state-title">Error Loading Category</h3>
-          <p className="empty-state-text">{error}</p>
+          <p className="empty-state-text">{error || 'Category not found'}</p>
         </div>
-      ) : category ? (
-        <CategoryForm category={category} />
-      ) : null}
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Edit Category</h1>
+          <p className="page-subtitle">
+            Configure default settings for {category.name} apps
+          </p>
+        </div>
+      </div>
+
+      <CategoryForm category={category} />
     </DashboardLayout>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <DashboardLayout>
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p className="loading-text">Loading...</p>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export default function EditCategoryPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <EditCategoryContent />
+    </Suspense>
   );
 }
