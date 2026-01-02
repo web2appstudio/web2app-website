@@ -1,16 +1,44 @@
 // Shared types for Web2App Studio
 
+// Template configuration - matches CategoryConfiguration with all Build Studio Step 2 settings
 export interface TemplateConfiguration {
+  // Window Settings
   windowStyle: 'normal' | 'menuBar' | 'sidebar';
-  windowWidth: number;
-  windowHeight: number;
+  windowPreset: 'phone' | 'tablet' | 'desktop' | 'fullHD' | 'fourK' | 'custom';
+  windowWidth: number | null;  // null = use preset default
+  windowHeight: number | null;
+
+  // Standard Features
+  showNavigationControls: boolean;
+  showPageURL: boolean;
+  cookiePersistence: boolean;
+  enableKeyboardShortcuts: boolean;
+  enableDockBadge: boolean;
+  enablePasswordAutoFill: boolean;
+  launchAtLogin: boolean;
+  floatOnTop: boolean;
+  enableDeveloperTools: boolean;
+
+  // Pro Features
   tabbedBrowsing: boolean;
   notifications: boolean;
-  internalLinkBehavior: 'sameWindow' | 'newTab';
-  externalLinkBehavior: 'systemBrowser' | 'newTab';
-  cookiePolicy: 'persistent' | 'session';
-  userAgent: 'default' | 'chrome' | 'safari';
-  adBlocking: 'disabled' | 'basic' | 'advanced';
+  adBlocking: boolean;
+
+  // Link Behavior
+  internalLinkBehavior: 'sameWindow' | 'newTab' | 'systemBrowser';
+  externalLinkBehavior: 'sameWindow' | 'newTab' | 'systemBrowser';
+
+  // User Agent
+  userAgent: 'default' | 'chrome' | 'safari' | 'firefox' | 'mobileSafari' | 'custom' | null;
+  customUserAgentString: string | null;
+
+  // Toolbar
+  useCustomToolbarColor: boolean;
+  toolbarColor: string | null;  // Hex color string
+
+  // Permissions
+  allowMicrophone: boolean | null;
+  allowCamera: boolean | null;
 }
 
 export interface TemplateMetadata {
@@ -178,18 +206,45 @@ export interface AdminSession {
   expiresAt: number;
 }
 
-// Default template configuration
+// Default template configuration - matches DEFAULT_CATEGORY_CONFIG
 export const DEFAULT_TEMPLATE_CONFIG: TemplateConfiguration = {
+  // Window Settings
   windowStyle: 'normal',
-  windowWidth: 1200,
-  windowHeight: 800,
-  tabbedBrowsing: true,
-  notifications: true,
-  internalLinkBehavior: 'newTab',
+  windowPreset: 'desktop',
+  windowWidth: null,
+  windowHeight: null,
+
+  // Standard Features
+  showNavigationControls: true,
+  showPageURL: true,
+  cookiePersistence: true,
+  enableKeyboardShortcuts: true,
+  enableDockBadge: false,
+  enablePasswordAutoFill: true,
+  launchAtLogin: false,
+  floatOnTop: false,
+  enableDeveloperTools: false,
+
+  // Pro Features
+  tabbedBrowsing: false,
+  notifications: false,
+  adBlocking: false,
+
+  // Link Behavior
+  internalLinkBehavior: 'sameWindow',
   externalLinkBehavior: 'systemBrowser',
-  cookiePolicy: 'persistent',
-  userAgent: 'default',
-  adBlocking: 'basic',
+
+  // User Agent
+  userAgent: null,
+  customUserAgentString: null,
+
+  // Toolbar
+  useCustomToolbarColor: false,
+  toolbarColor: null,
+
+  // Permissions
+  allowMicrophone: null,
+  allowCamera: null,
 };
 
 // Category colors for UI

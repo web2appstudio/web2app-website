@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Template, TemplateConfiguration, TemplateMetadata, IconShape } from '@/lib/types';
-import { DEFAULT_TEMPLATE_CONFIG, CATEGORIES, CATEGORY_COLORS, ICON_SHAPE_RADIUS } from '@/lib/types';
+import { DEFAULT_TEMPLATE_CONFIG, CATEGORIES, CATEGORY_COLORS, ICON_SHAPE_RADIUS, WINDOW_PRESETS } from '@/lib/types';
 import { getIconRawUrl } from '@/lib/github';
 
 interface TemplateFormProps {
@@ -12,11 +12,15 @@ interface TemplateFormProps {
 }
 
 const WINDOW_STYLES = ['normal', 'menuBar', 'sidebar'] as const;
+const WINDOW_PRESET_OPTIONS = ['phone', 'tablet', 'desktop', 'fullHD', 'fourK', 'custom'] as const;
 const LINK_BEHAVIORS = ['sameWindow', 'newTab', 'systemBrowser'] as const;
-const COOKIE_POLICIES = ['persistent', 'session'] as const;
-const USER_AGENTS = ['default', 'chrome', 'safari'] as const;
-const AD_BLOCKING_OPTIONS = ['disabled', 'basic', 'advanced'] as const;
+const USER_AGENTS = ['default', 'chrome', 'safari', 'firefox', 'mobileSafari', 'custom'] as const;
 const ICON_SHAPES: IconShape[] = ['circular', 'rounded', 'square'];
+
+// Helper to get preset dimensions
+function getPresetDimensions(preset: string): { width: number; height: number } {
+  return WINDOW_PRESETS[preset] || WINDOW_PRESETS.desktop;
+}
 
 export default function TemplateForm({ template, isEditing = false }: TemplateFormProps) {
   const router = useRouter();
@@ -47,16 +51,44 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
 
   // Configuration
   const config = template?.configuration || DEFAULT_TEMPLATE_CONFIG;
+
+  // Window Settings
   const [windowStyle, setWindowStyle] = useState(config.windowStyle);
-  const [windowWidth, setWindowWidth] = useState(config.windowWidth);
-  const [windowHeight, setWindowHeight] = useState(config.windowHeight);
+  const [windowPreset, setWindowPreset] = useState(config.windowPreset);
+  const [windowWidth, setWindowWidth] = useState<number | null>(config.windowWidth);
+  const [windowHeight, setWindowHeight] = useState<number | null>(config.windowHeight);
+
+  // Standard Features
+  const [showNavigationControls, setShowNavigationControls] = useState(config.showNavigationControls ?? true);
+  const [showPageURL, setShowPageURL] = useState(config.showPageURL ?? true);
+  const [cookiePersistence, setCookiePersistence] = useState(config.cookiePersistence);
+  const [enableKeyboardShortcuts, setEnableKeyboardShortcuts] = useState(config.enableKeyboardShortcuts ?? true);
+  const [enableDockBadge, setEnableDockBadge] = useState(config.enableDockBadge ?? false);
+  const [enablePasswordAutoFill, setEnablePasswordAutoFill] = useState(config.enablePasswordAutoFill ?? true);
+  const [launchAtLogin, setLaunchAtLogin] = useState(config.launchAtLogin ?? false);
+  const [floatOnTop, setFloatOnTop] = useState(config.floatOnTop ?? false);
+  const [enableDeveloperTools, setEnableDeveloperTools] = useState(config.enableDeveloperTools ?? false);
+
+  // Pro Features
   const [tabbedBrowsing, setTabbedBrowsing] = useState(config.tabbedBrowsing);
   const [notifications, setNotifications] = useState(config.notifications);
+  const [adBlocking, setAdBlocking] = useState(config.adBlocking);
+
+  // Link Behavior
   const [internalLinkBehavior, setInternalLinkBehavior] = useState(config.internalLinkBehavior);
   const [externalLinkBehavior, setExternalLinkBehavior] = useState(config.externalLinkBehavior);
-  const [cookiePolicy, setCookiePolicy] = useState(config.cookiePolicy);
+
+  // User Agent
   const [userAgent, setUserAgent] = useState(config.userAgent);
-  const [adBlocking, setAdBlocking] = useState(config.adBlocking);
+  const [customUserAgentString, setCustomUserAgentString] = useState(config.customUserAgentString ?? '');
+
+  // Toolbar
+  const [useCustomToolbarColor, setUseCustomToolbarColor] = useState(config.useCustomToolbarColor ?? false);
+  const [toolbarColor, setToolbarColor] = useState(config.toolbarColor ?? '#000000');
+
+  // Permissions
+  const [allowMicrophone, setAllowMicrophone] = useState(config.allowMicrophone);
+  const [allowCamera, setAllowCamera] = useState(config.allowCamera);
 
   // Metadata
   const [tier, setTier] = useState(template?.metadata?.tier || 1);
@@ -187,16 +219,43 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
         ...(iconShape && { iconShape }),
         description,
         configuration: {
+          // Window Settings
           windowStyle,
-          windowWidth,
-          windowHeight,
+          windowPreset,
+          windowWidth: windowPreset === 'custom' ? windowWidth : null,
+          windowHeight: windowPreset === 'custom' ? windowHeight : null,
+
+          // Standard Features
+          showNavigationControls,
+          showPageURL,
+          cookiePersistence,
+          enableKeyboardShortcuts,
+          enableDockBadge,
+          enablePasswordAutoFill,
+          launchAtLogin,
+          floatOnTop,
+          enableDeveloperTools,
+
+          // Pro Features
           tabbedBrowsing,
           notifications,
+          adBlocking,
+
+          // Link Behavior
           internalLinkBehavior,
           externalLinkBehavior,
-          cookiePolicy,
+
+          // User Agent
           userAgent,
-          adBlocking,
+          customUserAgentString: userAgent === 'custom' ? customUserAgentString : null,
+
+          // Toolbar
+          useCustomToolbarColor,
+          toolbarColor: useCustomToolbarColor ? toolbarColor : null,
+
+          // Permissions
+          allowMicrophone,
+          allowCamera,
         } as TemplateConfiguration,
         metadata: {
           version: template?.metadata?.version || '1.0',
@@ -570,27 +629,229 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
           </div>
 
           <div className="form-group">
-            <label className="form-label">Window Width</label>
-            <input
-              type="number"
-              className="form-input"
-              value={windowWidth}
-              onChange={e => setWindowWidth(Number(e.target.value))}
-            />
+            <label className="form-label">Window Preset</label>
+            <select
+              className="form-select"
+              value={windowPreset}
+              onChange={e => setWindowPreset(e.target.value as typeof windowPreset)}
+            >
+              {WINDOW_PRESET_OPTIONS.map(preset => {
+                const dims = getPresetDimensions(preset);
+                return (
+                  <option key={preset} value={preset}>
+                    {preset.charAt(0).toUpperCase() + preset.slice(1)} ({dims.width}x{dims.height})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {windowPreset === 'custom' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Custom Width</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={windowWidth || ''}
+                  onChange={e => setWindowWidth(e.target.value ? Number(e.target.value) : null)}
+                  placeholder="1200"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Custom Height</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={windowHeight || ''}
+                  onChange={e => setWindowHeight(e.target.value ? Number(e.target.value) : null)}
+                  placeholder="800"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Standard Features */}
+      <div className="form-section">
+        <h3 className="form-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+          Standard Features
+        </h3>
+
+        <p style={{ color: '#888', fontSize: 14, marginBottom: 16 }}>
+          These features are available to all users in the free tier.
+        </p>
+
+        <div className="form-grid">
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="showNavigationControls"
+                className="form-checkbox"
+                checked={showNavigationControls}
+                onChange={e => setShowNavigationControls(e.target.checked)}
+              />
+              <label htmlFor="showNavigationControls" className="form-checkbox-label">
+                Navigation Controls
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Back/forward buttons</span>
+              </label>
+            </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Window Height</label>
-            <input
-              type="number"
-              className="form-input"
-              value={windowHeight}
-              onChange={e => setWindowHeight(Number(e.target.value))}
-            />
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="showPageURL"
+                className="form-checkbox"
+                checked={showPageURL}
+                onChange={e => setShowPageURL(e.target.checked)}
+              />
+              <label htmlFor="showPageURL" className="form-checkbox-label">
+                Show Page URL
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Display current URL</span>
+              </label>
+            </div>
           </div>
 
           <div className="form-group">
-            <div className="form-checkbox-group" style={{ marginTop: 24 }}>
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="cookiePersistence"
+                className="form-checkbox"
+                checked={cookiePersistence}
+                onChange={e => setCookiePersistence(e.target.checked)}
+              />
+              <label htmlFor="cookiePersistence" className="form-checkbox-label">
+                Cookie Persistence
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Save login sessions</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="enableKeyboardShortcuts"
+                className="form-checkbox"
+                checked={enableKeyboardShortcuts}
+                onChange={e => setEnableKeyboardShortcuts(e.target.checked)}
+              />
+              <label htmlFor="enableKeyboardShortcuts" className="form-checkbox-label">
+                Keyboard Shortcuts
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Cmd+L, Cmd+R, etc.</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="enableDockBadge"
+                className="form-checkbox"
+                checked={enableDockBadge}
+                onChange={e => setEnableDockBadge(e.target.checked)}
+              />
+              <label htmlFor="enableDockBadge" className="form-checkbox-label">
+                Dock Badge
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Show unread counts</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="enablePasswordAutoFill"
+                className="form-checkbox"
+                checked={enablePasswordAutoFill}
+                onChange={e => setEnablePasswordAutoFill(e.target.checked)}
+              />
+              <label htmlFor="enablePasswordAutoFill" className="form-checkbox-label">
+                Password AutoFill
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>System password autofill</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="launchAtLogin"
+                className="form-checkbox"
+                checked={launchAtLogin}
+                onChange={e => setLaunchAtLogin(e.target.checked)}
+              />
+              <label htmlFor="launchAtLogin" className="form-checkbox-label">
+                Launch at Login
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Start app when you log in</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="floatOnTop"
+                className="form-checkbox"
+                checked={floatOnTop}
+                onChange={e => setFloatOnTop(e.target.checked)}
+              />
+              <label htmlFor="floatOnTop" className="form-checkbox-label">
+                Float on Top
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Keep window above others</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="enableDeveloperTools"
+                className="form-checkbox"
+                checked={enableDeveloperTools}
+                onChange={e => setEnableDeveloperTools(e.target.checked)}
+              />
+              <label htmlFor="enableDeveloperTools" className="form-checkbox-label">
+                Developer Tools
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Enable Web Inspector</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pro Features */}
+      <div className="form-section">
+        <h3 className="form-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          Pro Features
+        </h3>
+
+        <p style={{ color: '#888', fontSize: 14, marginBottom: 16 }}>
+          These features require a Pro license.
+        </p>
+
+        <div className="form-grid">
+          <div className="form-group">
+            <div className="form-checkbox-group">
               <input
                 type="checkbox"
                 id="tabbedBrowsing"
@@ -599,13 +860,14 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                 onChange={e => setTabbedBrowsing(e.target.checked)}
               />
               <label htmlFor="tabbedBrowsing" className="form-checkbox-label">
-                Enable Tabbed Browsing
+                Tabbed Browsing
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Multiple tabs in one window</span>
               </label>
             </div>
           </div>
 
           <div className="form-group">
-            <div className="form-checkbox-group" style={{ marginTop: 24 }}>
+            <div className="form-checkbox-group">
               <input
                 type="checkbox"
                 id="notifications"
@@ -614,21 +876,38 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                 onChange={e => setNotifications(e.target.checked)}
               />
               <label htmlFor="notifications" className="form-checkbox-label">
-                Enable Notifications
+                Notifications
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Push & web notifications</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="adBlocking"
+                className="form-checkbox"
+                checked={adBlocking}
+                onChange={e => setAdBlocking(e.target.checked)}
+              />
+              <label htmlFor="adBlocking" className="form-checkbox-label">
+                Block Ads & Popups
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Remove ads, trackers, and popups</span>
               </label>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Behavior Settings */}
+      {/* Link Behavior */}
       <div className="form-section">
         <h3 className="form-section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
           </svg>
-          Behavior Settings
+          Link Behavior
         </h3>
 
         <div className="form-grid">
@@ -646,6 +925,9 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                 </option>
               ))}
             </select>
+            <span style={{ color: '#666', fontSize: 12, marginTop: 4, display: 'block' }}>
+              Links within the same domain
+            </span>
           </div>
 
           <div className="form-group">
@@ -662,51 +944,157 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                 </option>
               ))}
             </select>
+            <span style={{ color: '#666', fontSize: 12, marginTop: 4, display: 'block' }}>
+              Links to other domains
+            </span>
           </div>
+        </div>
+      </div>
 
-          <div className="form-group">
-            <label className="form-label">Cookie Policy</label>
-            <select
-              className="form-select"
-              value={cookiePolicy}
-              onChange={e => setCookiePolicy(e.target.value as typeof cookiePolicy)}
-            >
-              {COOKIE_POLICIES.map(policy => (
-                <option key={policy} value={policy}>
-                  {policy.charAt(0).toUpperCase() + policy.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* User Agent */}
+      <div className="form-section">
+        <h3 className="form-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+          </svg>
+          User Agent
+        </h3>
 
+        <div className="form-grid">
           <div className="form-group">
             <label className="form-label">User Agent</label>
             <select
               className="form-select"
-              value={userAgent}
-              onChange={e => setUserAgent(e.target.value as typeof userAgent)}
+              value={userAgent || 'default'}
+              onChange={e => setUserAgent(e.target.value === 'default' ? null : e.target.value as typeof userAgent)}
             >
               {USER_AGENTS.map(agent => (
                 <option key={agent} value={agent}>
-                  {agent.charAt(0).toUpperCase() + agent.slice(1)}
+                  {agent === 'default' ? 'Safari (Default)' :
+                   agent === 'mobileSafari' ? 'Mobile Safari' :
+                   agent.charAt(0).toUpperCase() + agent.slice(1)}
                 </option>
               ))}
             </select>
+            <span style={{ color: '#666', fontSize: 12, marginTop: 4, display: 'block' }}>
+              How the app identifies itself to websites
+            </span>
+          </div>
+
+          {userAgent === 'custom' && (
+            <div className="form-group">
+              <label className="form-label">Custom User Agent String</label>
+              <input
+                type="text"
+                className="form-input"
+                value={customUserAgentString}
+                onChange={e => setCustomUserAgentString(e.target.value)}
+                placeholder="Mozilla/5.0 ..."
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Toolbar Appearance */}
+      <div className="form-section">
+        <h3 className="form-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="13.5" cy="6.5" r="2.5" />
+            <circle cx="17.5" cy="10.5" r="2.5" />
+            <circle cx="8.5" cy="7.5" r="2.5" />
+            <circle cx="6.5" cy="12.5" r="2.5" />
+            <path d="M12 22a9 9 0 100-18 9 9 0 000 18z" />
+          </svg>
+          Toolbar Appearance
+        </h3>
+
+        <div className="form-grid">
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="useCustomToolbarColor"
+                className="form-checkbox"
+                checked={useCustomToolbarColor}
+                onChange={e => setUseCustomToolbarColor(e.target.checked)}
+              />
+              <label htmlFor="useCustomToolbarColor" className="form-checkbox-label">
+                Custom Toolbar Color
+                <span style={{ color: '#666', fontSize: 12, display: 'block' }}>Use a custom color for the toolbar</span>
+              </label>
+            </div>
+          </div>
+
+          {useCustomToolbarColor && (
+            <div className="form-group">
+              <label className="form-label">Toolbar Color</label>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <input
+                  type="color"
+                  value={toolbarColor}
+                  onChange={e => setToolbarColor(e.target.value)}
+                  style={{ width: 48, height: 32, padding: 0, border: '1px solid #333', borderRadius: 4, cursor: 'pointer' }}
+                />
+                <input
+                  type="text"
+                  className="form-input"
+                  value={toolbarColor}
+                  onChange={e => setToolbarColor(e.target.value)}
+                  placeholder="#000000"
+                  style={{ flex: 1 }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Permissions */}
+      <div className="form-section">
+        <h3 className="form-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          Permissions
+        </h3>
+
+        <p style={{ color: '#888', fontSize: 14, marginBottom: 16 }}>
+          These permissions will be requested from users when they build this app.
+          Leave unchecked for default behavior (not requested).
+        </p>
+
+        <div className="form-grid">
+          <div className="form-group">
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="allowMicrophone"
+                className="form-checkbox"
+                checked={allowMicrophone === true}
+                onChange={e => setAllowMicrophone(e.target.checked ? true : null)}
+              />
+              <label htmlFor="allowMicrophone" className="form-checkbox-label">
+                Request Microphone Access
+              </label>
+            </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Ad Blocking</label>
-            <select
-              className="form-select"
-              value={adBlocking}
-              onChange={e => setAdBlocking(e.target.value as typeof adBlocking)}
-            >
-              {AD_BLOCKING_OPTIONS.map(option => (
-                <option key={option} value={option}>
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </option>
-              ))}
-            </select>
+            <div className="form-checkbox-group">
+              <input
+                type="checkbox"
+                id="allowCamera"
+                className="form-checkbox"
+                checked={allowCamera === true}
+                onChange={e => setAllowCamera(e.target.checked ? true : null)}
+              />
+              <label htmlFor="allowCamera" className="form-checkbox-label">
+                Request Camera Access
+              </label>
+            </div>
           </div>
         </div>
       </div>
