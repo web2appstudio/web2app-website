@@ -46,18 +46,43 @@ export const ICON_SHAPE_RADIUS: Record<IconShape, number> = {
 };
 
 // Category configuration - matches Swift AppCategoryConfiguration
+// Contains all Build Studio Step 2 behavior settings
 export interface CategoryConfiguration {
+  // Window Settings
   windowStyle: 'normal' | 'menuBar' | 'sidebar';
   windowPreset: 'phone' | 'tablet' | 'desktop' | 'fullHD' | 'fourK' | 'custom';
   windowWidth: number | null;  // null = use preset default
   windowHeight: number | null;
+
+  // Standard Features
+  showNavigationControls: boolean;
+  showPageURL: boolean;
+  cookiePersistence: boolean;
+  enableKeyboardShortcuts: boolean;
+  enableDockBadge: boolean;
+  enablePasswordAutoFill: boolean;
+  launchAtLogin: boolean;
+  floatOnTop: boolean;
+  enableDeveloperTools: boolean;
+
+  // Pro Features
   tabbedBrowsing: boolean;
   notifications: boolean;
+  adBlocking: boolean;
+
+  // Link Behavior
   internalLinkBehavior: 'sameWindow' | 'newTab' | 'systemBrowser';
   externalLinkBehavior: 'sameWindow' | 'newTab' | 'systemBrowser';
-  cookiePersistence: boolean;
-  adBlocking: boolean;
-  userAgent: 'default' | 'chrome' | 'safari' | null;
+
+  // User Agent
+  userAgent: 'default' | 'chrome' | 'safari' | 'firefox' | 'mobileSafari' | 'custom' | null;
+  customUserAgentString: string | null;
+
+  // Toolbar
+  useCustomToolbarColor: boolean;
+  toolbarColor: string | null;  // Hex color string
+
+  // Permissions
   allowMicrophone: boolean | null;
   allowCamera: boolean | null;
 }
@@ -93,17 +118,41 @@ export const WINDOW_PRESETS: Record<string, { width: number; height: number }> =
 
 // Default category configuration
 export const DEFAULT_CATEGORY_CONFIG: CategoryConfiguration = {
+  // Window Settings
   windowStyle: 'normal',
   windowPreset: 'desktop',
   windowWidth: null,
   windowHeight: null,
-  tabbedBrowsing: true,
-  notifications: true,
+
+  // Standard Features
+  showNavigationControls: true,
+  showPageURL: true,
+  cookiePersistence: true,
+  enableKeyboardShortcuts: true,
+  enableDockBadge: false,
+  enablePasswordAutoFill: true,
+  launchAtLogin: false,
+  floatOnTop: false,
+  enableDeveloperTools: false,
+
+  // Pro Features
+  tabbedBrowsing: false,
+  notifications: false,
+  adBlocking: false,
+
+  // Link Behavior
   internalLinkBehavior: 'sameWindow',
   externalLinkBehavior: 'systemBrowser',
-  cookiePersistence: true,
-  adBlocking: false,
+
+  // User Agent
   userAgent: null,
+  customUserAgentString: null,
+
+  // Toolbar
+  useCustomToolbarColor: false,
+  toolbarColor: null,
+
+  // Permissions
   allowMicrophone: null,
   allowCamera: null,
 };
