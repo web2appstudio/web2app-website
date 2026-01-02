@@ -372,6 +372,7 @@ export async function deleteIcon(
 
 // Get the raw URL for an icon
 export function getIconRawUrl(iconPath: string): string {
-  // Use jsDelivr CDN for better performance
-  return `https://cdn.jsdelivr.net/gh/${GITHUB_ORG}/${GITHUB_REPO}@${GITHUB_BRANCH}/${iconPath}`;
+  // Use our API endpoint to serve icons from the private repo
+  // This works for both server-side and client-side rendering
+  return `/api/icons/${iconPath}`;
 }
