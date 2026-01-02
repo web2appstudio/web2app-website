@@ -269,7 +269,6 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                   width: 80,
                   height: 80,
                   borderRadius: getShapeBorderRadius(iconShape, 80),
-                  backgroundColor: iconBackground,
                   objectFit: 'cover',
                 }}
               />
@@ -381,7 +380,6 @@ export default function TemplateForm({ template, isEditing = false }: TemplateFo
                   width: 128,
                   height: 128,
                   borderRadius: getShapeBorderRadius(iconShape, 128),
-                  backgroundColor: iconBackground,
                   objectFit: 'cover',
                 }}
               />

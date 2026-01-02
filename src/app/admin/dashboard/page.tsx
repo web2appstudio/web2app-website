@@ -329,7 +329,6 @@ export default function DashboardPage() {
                     className="template-icon-image"
                     style={{
                       borderRadius: getIconBorderRadius(template),
-                      backgroundColor: template.iconBackground || '#fff',
                     }}
                   />
                 ) : (
