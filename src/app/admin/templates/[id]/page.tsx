@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { use } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -12,8 +12,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default function EditTemplatePage({ params }: PageProps) {
-  const { id } = use(params);
+function EditTemplateContent({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
 
@@ -87,5 +86,26 @@ export default function EditTemplatePage({ params }: PageProps) {
 
       <TemplateForm template={template} isEditing />
     </DashboardLayout>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <DashboardLayout>
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p className="loading-text">Loading...</p>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export default function EditTemplatePage({ params }: PageProps) {
+  const { id } = use(params);
+
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <EditTemplateContent id={id} />
+    </Suspense>
   );
 }
