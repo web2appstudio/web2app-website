@@ -376,3 +376,140 @@ export function getIconRawUrl(iconPath: string): string {
   // This works for both server-side and client-side rendering
   return `/api/icons/${iconPath}`;
 }
+
+// ============================================================================
+// Category Management Functions
+// ============================================================================
+
+// Fetch all categories with their configurations
+export async function fetchAllCategories(
+  accessToken: string
+): Promise<Category[]> {
+  try {
+    const dirResponse = await fetch(
+      `${GITHUB_API_URL}/repos/${GITHUB_ORG}/${GITHUB_REPO}/contents/categories?ref=${GITHUB_BRANCH}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Web2App-Studio-Admin',
+        },
+      }
+    );
+
+    if (!dirResponse.ok) {
+      // Directory might not exist yet
+      console.warn('Categories directory not found');
+      return [];
+    }
+
+    const files: GitHubFile[] = await dirResponse.json();
+    const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+
+    const categories = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          const fileResponse = await fetch(file.download_url!, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'User-Agent': 'Web2App-Studio-Admin',
+            },
+          });
+          return await fileResponse.json();
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    return categories.filter((c): c is Category => c !== null);
+  } catch (error) {
+    console.error('Failed to fetch categories:', error);
+    return [];
+  }
+}
+
+// Fetch a single category by ID
+export async function fetchCategory(
+  categoryId: string,
+  accessToken: string
+): Promise<Category | null> {
+  try {
+    const response = await fetch(
+      `${GITHUB_API_URL}/repos/${GITHUB_ORG}/${GITHUB_REPO}/contents/categories/${categoryId}.json?ref=${GITHUB_BRANCH}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3.raw',
+          'User-Agent': 'Web2App-Studio-Admin',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+// Save a category (create or update)
+export async function saveCategory(
+  category: Category,
+  accessToken: string
+): Promise<{ success: boolean; error?: string }> {
+  const path = `categories/${category.id}.json`;
+  const content = JSON.stringify(category, null, 2);
+  const message = `Update category: ${category.name}`;
+
+  return createOrUpdateFile(path, content, message, accessToken);
+}
+
+// Fetch categories without auth (for public API - uses raw URLs)
+export async function fetchCategoriesPublic(): Promise<Category[]> {
+  try {
+    // First fetch the directory listing via the public API
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}/contents/categories?ref=${GITHUB_BRANCH}`,
+      {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Web2App-Studio',
+        },
+        next: { revalidate: 300 }, // Cache for 5 minutes
+      }
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const files: GitHubFile[] = await response.json();
+    const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+
+    const categories = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          if (!file.download_url) return null;
+          const fileResponse = await fetch(file.download_url, {
+            headers: {
+              'User-Agent': 'Web2App-Studio',
+            },
+            next: { revalidate: 300 },
+          });
+          return await fileResponse.json();
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    return categories.filter((c): c is Category => c !== null);
+  } catch (error) {
+    console.error('Failed to fetch categories (public):', error);
+    return [];
+  }
+}
